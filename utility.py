@@ -1,6 +1,6 @@
 from numpy import frombuffer, dtype, empty, asarray, iinfo, log10
 from scipy.signal import lfilter, freqz
-from PySide.QtCore import QPoint
+from PySide2.QtCore import QPoint
 
 def byteToPCM(data, sample_width):
     d_type = 'float'

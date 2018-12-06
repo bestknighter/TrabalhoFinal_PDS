@@ -30,7 +30,7 @@ def sosfilter(sos, zi_in, x):
 
 def sosfreqz(sos, ws = None):
     if ws is None:
-        H = [1] * 512        
+        H = [1] * 512
     else:
         H = [1] * len(ws)
 

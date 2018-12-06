@@ -10,7 +10,7 @@ from filters import FilterType, Filter, FilterChain
 from utility import byteToPCM, floatToPCM, pcmToFloat, sosfreqz, toPixelCords, fromPixelCords
 
 filterTypes = OrderedDict({
-    FilterType.LPButter: 'Low Pass (Flat)', 
+    FilterType.LPButter: 'Low Pass (Flat)',
     FilterType.LPBrickwall: 'Low Pass (Brickwall)',
     FilterType.HPButter: 'High Pass (Flat)',
     FilterType.HPBrickwall: 'High Pass (Brickwall)',
@@ -115,7 +115,7 @@ class PlotWin(QFrame):
         self.setAutoFillBackground(True)
         self.show()
 
-        self.xaxis = Axis('bottom', 50, fs / 2, log = True)
+        self.xaxis = Axis('bottom', 20.0, fs / 2, log = True)
         self.laxis = Axis('left', -100, 0)
         self.raxis = Axis('right', -10, 10)
         self.rect = QRectF()
@@ -142,7 +142,7 @@ class PlotWin(QFrame):
         gradient.setColorAt(0, QColor(100, 102, 127))
         gradient.setColorAt(1, QColor(0, 0, 0))
         p = self.palette()
-        p.setBrush(QPalette.Background, QBrush(gradient))        
+        p.setBrush(QPalette.Background, QBrush(gradient))
         self.setPalette(p)
 
     def mousePressEvent(self, e):
@@ -184,7 +184,7 @@ class PlotWin(QFrame):
 
         self.drawTicks(qp, self.xaxis)
         self.drawTicks(qp, self.laxis)
-        self.drawTicks(qp, self.raxis)      
+        self.drawTicks(qp, self.raxis)
 
         #paint filter response
         filt = self.parent().chain._filters[self.focused]
@@ -216,8 +216,8 @@ class PlotWin(QFrame):
         qp.setBrush(curve.brush)
         
         if curve.is_path:
-            if curve._path.elementCount() == 0:                
-                curve._path.moveTo(toPixelCords(w, h, 0, self.xaxis, 0, yaxis))
+            if curve._path.elementCount() == 0:
+                curve._path.moveTo(toPixelCords(w, h, curve.xdata[0], self.xaxis, curve.ydata[0], yaxis))
                 for x, y in zip(curve.xdata, curve.ydata):
                     curve._path.lineTo(toPixelCords(w, h, x, self.xaxis, y, yaxis))
             qp.drawPath(curve._path)
@@ -245,14 +245,14 @@ class PlotWin(QFrame):
 
     def updateSpectrum(self, dft):
 
+    def updateSpectrum(self, dft):
         if dft.size > 0:
-                    N = dft.size
-                    self.speccurv.setData([fs / 2 / N * i for i in range(0,N)],
-                                                   20 * np.log10(np.abs(dft / N) + eps))
-                    self.update()
+            N = dft.size
+            self.speccurv.setData([fs / N * i for i in range(0,N)],
+                                            20 * np.log10(np.abs(dft[:math.ceil(len(dft)/2)] / N) + eps))
+            self.update()
 
     def drawHandles(self, qp):
-                         
         for i, h in enumerate(self.handles): 
             if h != None:
                 if self.focused == i:
@@ -290,7 +290,7 @@ class PlotWin(QFrame):
             for i in range(1,5):
                 minors.extend([j * 10 ** i for j in range(2,10)])
 
-            qp.drawLine(self.rect.bottomLeft(), self.rect.bottomRight())          
+            qp.drawLine(self.rect.bottomLeft(), self.rect.bottomRight())
             for tick in majors:
 
                 qp.setPen(tick_pen)
@@ -473,7 +473,7 @@ class MainWindow(QWidget):
             ww.writeframes(bytes(floatToPCM(s)))
 
     @Slot()
-    def onFilterEnableChange(self, i):        
+    def onFilterEnableChange(self, i):
         enabled = self.nodes[i].ctrls[0].isChecked()
         if enabled:
             ftype = self.nodes[i].ctrls[1].currentIndex()
@@ -489,7 +489,7 @@ class MainWindow(QWidget):
 
     @Slot()
     def paramChanged(self, i, param, val):
-        self.updateFilter(i, param, val)       
+        self.updateFilter(i, param, val)
         self.updateChainTF()
         self.plotwin.updateHandles() 
 
@@ -520,7 +520,7 @@ class MainWindow(QWidget):
 
         if param == Params.TYPE:
             type = val
-            Q = 1                      
+            Q = 1
         elif param == Params.F:
             fc = int(self.nodes[i].ctrls[2].text()) * 2 / fs
         elif param == Params.G:
@@ -534,11 +534,11 @@ class MainWindow(QWidget):
                 Q = val / 100
 
         self.chain.updateFilt(i, Filter(type, fc, g, Q))
-        if param == Params.TYPE:            
+        if param == Params.TYPE:
             self.updateControls(i, type)
-            self.adjustSliderRange(i, type) 
+            self.adjustSliderRange(i, type)
 
-        self.updateSliderLabel(i)    
+        self.updateSliderLabel(i)
 
     def adjustSliderRange(self, index, type):
         slider = self.nodes[index].ctrls[4]
@@ -581,15 +581,16 @@ class MainWindow(QWidget):
                 data = str.encode(data)            
             if len(data) < frame_count * sampw * nchan:
                 if self.loop_box.isChecked():
-                    wf.rewind()                    
-                    data = b''.join([data,
-                                     wf.readframes(frame_count - int(len(data) / (sampw * nchan)))])
+                    wf.rewind()
+                    data = b''.join([data, wf.readframes(frame_count - int(len(data) / (sampw * nchan)))])
                     self.chain.reset()
                 elif len(data) == 0:
                     return data, pyaudio.paComplete
  
-            filtered = self.chain.filter(pcmToFloat(byteToPCM(data,sampw)))
-            self.plotwin.updateSpectrum(np.fft.rfft(filtered))                
+            unfiltered = pcmToFloat(byteToPCM(data,sampw))
+            filtered = self.chain.filter(unfiltered)
+            self.plotwin.updateUnfiltSpectrum(np.fft.rfft(unfiltered))
+            self.plotwin.updateSpectrum(np.fft.rfft(filtered))
                 
             return bytes(floatToPCM(filtered)), pyaudio.paContinue
         
@@ -604,7 +605,6 @@ class MainWindow(QWidget):
         self.chain.reset()
 
     def updateChainTF(self):
-   
         w, H = sosfreqz(self.chain.sos(), self.plotwin.wor)
         self.plotwin.TFcurv.setData(w * 0.5 / np.pi * fs, 20 * np.log10(np.abs(H) + eps))
         self.plotwin.update()

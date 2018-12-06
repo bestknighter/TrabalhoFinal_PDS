@@ -179,6 +179,7 @@ def zpk2sos(z,p,k) :
     pcm2r = -2*pc.real
     pca2  = abs(pc)**2
     
+    nsecs = round(nsecs)
     sos = zeros((nsecs,6))
     
     # all 2nd-order polynomials are monic

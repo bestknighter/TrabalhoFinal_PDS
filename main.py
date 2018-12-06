@@ -350,8 +350,12 @@ class MainWindow(QWidget):
         open_btn.clicked.connect(self.onOpenBtnClick)
         self.path_label = QLabel('')
         self.loop_box = QCheckBox('Loop')
+        bypass_box = QCheckBox('Bypass')
+        bypass_box.clicked.connect(self.bypassChanged)
         play_btn = QPushButton('Play')
         play_btn.clicked.connect(self.onPlayBtnClick)
+        pause_btn = QPushButton('Pause')
+        pause_btn.clicked.connect(self.onPauseBtnClick)
         stop_btn = QPushButton('Stop')
         stop_btn.clicked.connect(self.onStopBtnClick)
         save_btn = QPushButton('Apply EQ and save')
@@ -359,12 +363,14 @@ class MainWindow(QWidget):
 
         trackctrl_layout = QHBoxLayout()
         trackctrl_layout.addWidget(open_btn)
-        trackctrl_layout.addWidget(self.path_label)       
+        trackctrl_layout.addWidget(self.path_label)
         trackctrl_layout.addWidget(play_btn)
+        trackctrl_layout.addWidget(pause_btn)
         trackctrl_layout.addWidget(stop_btn)
         trackctrl_layout.addWidget(self.loop_box)
+        trackctrl_layout.addWidget(bypass_box)
         trackctrl_layout.addSpacing(50)
-        trackctrl_layout.addWidget(save_btn)        
+        trackctrl_layout.addWidget(save_btn)
         layout.addLayout(trackctrl_layout)
 
         #--------- plot ------------
@@ -437,6 +443,7 @@ class MainWindow(QWidget):
             self.path_label.setText(file_name)
             self.wf = wave.open(file_name,'rb')
             self.openStream()
+            self.stream.stop_stream()
 
     @Slot()
     def onPlayBtnClick(self):
@@ -447,11 +454,16 @@ class MainWindow(QWidget):
             else:
                 self.stream.start_stream()
 
+    @Slot()
+    def onPauseBtnClick(self):
+        if self.stream:
+            self.stream.stop_stream()
 
     @Slot()
     def onStopBtnClick(self):
         if self.stream:
             self.stream.stop_stream()
+            self.wf.rewind()
 
     @Slot()
     def onSaveBtnClick(self):
@@ -492,6 +504,11 @@ class MainWindow(QWidget):
         self.updateFilter(i, param, val)
         self.updateChainTF()
         self.plotwin.updateHandles() 
+
+    @Slot()
+    def bypassChanged(self, val):
+        self.chain.setBypass(val)
+        self.updateChainTF()
 
     @Slot()
     def focusChanged(self, old, new):

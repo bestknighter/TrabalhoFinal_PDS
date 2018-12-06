@@ -77,20 +77,27 @@ class Filter:
 class FilterChain:
     def __init__(self):
         self._filters = []
+        self._bypass = False
 
     def sos(self, i = -1):
         """
         Returns second-order-section matrix of this chain or one filt.
         """
+        sos = np.ones(shape = (1,6))
+
+        if self._bypass:
+            return sos
+
         if i != -1:
             return self._filters[i]._sos
-        
-        sos = np.ones(shape = (1,6))
 
         for filt in self._filters:
             if filt._enabled is True:
                 sos = np.append(sos, filt._sos, axis = 0)
         return sos
+
+    def setBypass(self, enable):
+        self._bypass = enable
 
     def setFiltEnabled(self, i, enable):
         filt = self._filters[i]
@@ -106,18 +113,21 @@ class FilterChain:
 
     def getZi(self):
         zi = [[0, 0]]
+        if self._bypass:
+            return zi
         for filt in self._filters:
             if filt._enabled is True:
                 zi.extend(filt._zi)
         return zi
 
     def updateZi(self, zi):
-        n = 1
-        for filt in self._filters:
-            if filt._enabled is True:
-                m = filt._sos.shape[0]
-                filt._zi = zi[n:n+m]
-                n += m
+        if not self._bypass:
+            n = 1
+            for filt in self._filters:
+                if filt._enabled is True:
+                    m = filt._sos.shape[0]
+                    filt._zi = zi[n:n+m]
+                    n += m
 
     def reset(self):
         for filt in self._filters:

@@ -5,6 +5,7 @@ import pyaudio
 import wave
 import time
 import numpy as np
+import math
 from collections import OrderedDict
 from filters import FilterType, Filter, FilterChain
 from utility import byteToPCM, floatToPCM, pcmToFloat, sosfreqz, toPixelCords, fromPixelCords
@@ -19,7 +20,7 @@ filterTypes = OrderedDict({
     FilterType.Peak: 'Peak'})
 
 
-fs = 44100
+fs = 96000
 eps = 0.0000001
 
 class Params:
@@ -120,13 +121,19 @@ class PlotWin(QFrame):
         self.raxis = Axis('right', -10, 10)
         self.rect = QRectF()
 
-        pen1 = QPen(Qt.gray)
+        pen1 = QPen(Qt.green)
         pen1.setWidth(1.5)
         self.speccurv = PlotCurve(pen1)
         pen2 = QPen()
         pen2.setWidth(2)
         pen2.setColor(Qt.red)
         self.TFcurv = PlotCurve(pen2)
+        pen3 = QPen()
+        pen3.setWidth(1)
+        pen3.setColor(Qt.gray)
+        self.specUnfiltCurv = PlotCurve(pen3, QBrush(QColor(255, 255, 255, 50)), is_path = True)
+        self.specUnfiltCurv.setData([1.0, 1.0], [-100.0, -100.0])
+        
         w0 = self.xaxis.min * 2 * np.pi / fs
         self.wor = np.logspace(np.log10(w0), np.log10(np.pi), 512)
         self.refresh_rate = 30
@@ -193,21 +200,23 @@ class PlotWin(QFrame):
             pen = QPen((QColor(170, 0, 0)))
             pen.setWidth(1.5)
             if filt._type == FilterType.Peak:
-                c = PlotCurve(pen, QBrush(QColor(255, 255, 255, 50)), is_path = True)
+                c = PlotCurve(pen, QBrush(QColor(255, 0, 0, 50)), is_path = True)
             else:
                 c = PlotCurve(pen, is_path = True)
-
             c.setData(w * 0.5 / np.pi * fs, 20 * np.log10(np.abs(H) + eps))
             self.plot(qp, c, self.raxis)
+        
+        #paint the unfiltered spectrum
+        self.plot(qp, self.specUnfiltCurv, self.laxis)
+        
+        #paint the spectrum
+        self.plot(qp, self.speccurv, self.laxis)
 
         #paint chain response
         self.plot(qp, self.TFcurv, self.raxis)
-         
-        #paint handles      
-        self.drawHandles(qp)  
-        
-        #paint the spectrum
-        self.plot(qp, self.speccurv, self.laxis)    
+
+        #paint handles
+        self.drawHandles(qp)
 
     def plot(self, qp, curve, yaxis):
         w = self.width()
@@ -228,7 +237,6 @@ class PlotWin(QFrame):
             qp.drawPolyline(poly)
 
     def updateHandles(self):
-
         for i, filter in enumerate(self.parent().chain._filters):
             if filter._enabled is True:
                 fc = filter._fc * fs * 0.5
@@ -236,14 +244,23 @@ class PlotWin(QFrame):
                     y = 0
                 else:
                     y = filter._g
-
                 self.handles[i] = toPixelCords(self.width(), self.height(), fc, self.xaxis, y, self.raxis)
                 self.parent().nodes[i].ctrls[2].setText(str(int(fc)))
                 self.parent().nodes[i].ctrls[3].setText("{:.1f}".format(filter._g))
             else:
                 self.handles[i] = None
 
-    def updateSpectrum(self, dft):
+    def updateUnfiltSpectrum(self, dft):
+        if dft.size > 0:
+            N = dft.size
+            x = [0.0]
+            y = [-100.0]
+            x = np.append(x, [fs / N * i for i in range(0,N)])
+            y = np.append(y, 20 * np.log10(np.abs(dft[:math.ceil(len(dft)/2)] / N ) + eps))
+            x = np.append(x, [fs / 2])
+            y = np.append(y, [-100.0])
+            self.specUnfiltCurv.setData(x, y)
+            self.update()
 
     def updateSpectrum(self, dft):
         if dft.size > 0:
@@ -303,6 +320,8 @@ class PlotWin(QFrame):
             for tick in minors:
                 qp.setPen(tick_pen)
                 qp.drawLine(toPixelCords(w, h, tick, xaxis), h - bgap, toPixelCords(w, h, tick, xaxis), h - bgap - ticklen * 0.5)
+                if math.log10(tick/5) == int(math.log10(tick/5)):
+                    qp.drawText(toPixelCords(w, h, tick, xaxis) - bgap, h, str(tick))
               
                 qp.setPen(grid_minor_pen)
                 qp.drawLine(toPixelCords(w, h, tick, xaxis), h - bgap - ticklen * 0.5, toPixelCords(w, h, tick, xaxis), 0)
